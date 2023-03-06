@@ -1,0 +1,192 @@
+use main_work;
+show tables;
+
+create table if not exists de_case_study (
+	gender varchar(3),
+    ssc_p int,
+    ssc_b varchar(20),
+    hsc_p float,
+    hsc_b varchar(20),
+    hsc_s varchar(20),
+    degree_p float,
+    degree_t varchar(30),
+    workex varchar(10),
+    etest_p float,
+    specialization varchar(30),
+    mba_p float,
+    status_ varchar(20),
+    salary int
+);
+
+select * from main_work.de_case_study;
+
+LOAD DATA INFILE "/var/lib/mysql-files/DE_case_data.csv"
+	INTO TABLE main_work.de_case_study
+    FIELDS TERMINATED BY ','
+    LINES TERMINATED BY '\n'
+    IGNORE 1 ROWS;
+    
+select * from main_work.de_case_study;
+
+
+-- Question 1: Which gender scored better in their MBA on average?
+
+-- ANS: Females performed relatively better than Males on an average 
+-- with almost 3% higher scores than males.
+
+select gender, 
+		round(avg(mba_p),2) as avg_mba_score_pct
+	from main_work.de_case_study
+    group by gender
+    order by 2 desc;
+    
+    
+-- Question 2: Which gender has the highest mean salary for both placed and unplaced candidates combined? 
+-- Note that unplaced candidates have a salary of 0.
+
+-- ANS: Males placed have a better salary on an average than females with 
+-- an edge of over 5.5% advantage for males.
+-- However both males and females equal earn nothing when neither of them
+-- is placed.
+select gender,
+		status_,
+        round(avg(salary),2) as avg_salary
+	from main_work.de_case_study
+    group by gender, status_
+    order by 3 desc;
+    
+-- Question 3: Is there a relationship between ssc_p and hsc_p for 
+-- the candidates who took Science or Commerce as streams for higher education?
+
+-- ANS: Science Candidates have a higher percentage and better salary on an average than 
+-- Commerece students as regards to their secondary education, 
+-- however for higher education the reverse is the case with Commerce 
+-- candidates having a higher percentange but lower salary on an average
+select temp.hsc_s as higher_ed,
+		round(avg(temp.hsc_p),2) as avg_higher_ed_pct,
+        round(avg(temp.ssc_p),2) as avg_sec_sch_pct,
+        round(avg(temp.salary),2) as avg_salary
+	from (
+		select hsc_s,
+				hsc_p,
+				ssc_p,
+                salary
+			from main_work.de_case_study
+			where hsc_s = "Commerce" or hsc_s = "Science"
+		) as temp
+	group by 1
+    order by 2 desc, 3 desc;
+    
+-- Question 4: Candidates with which undergraduate degree 
+-- type have the highest mean MBA percentage?
+
+-- ANS: Sci&Tech candidates have the highest MBA percentage while
+-- Comm&Mgmt and Other share a similar MBA percentage.
+
+select degree_t as degree,
+		round(avg(mba_p),2) as avg_mba_pct
+	from main_work.de_case_study
+    group by 1
+    order by 2 desc;
+    
+
+-- Question 5: Should the institute alter its selection criteria 
+-- for work experience to increase the average placement salary? 
+-- (Do not remove outliers while answering.)
+
+-- ANS: Given that the current selection criteria wasn't given, the
+-- company can also look into selecting candidates with no work-exp.
+-- This is because even though there's about 23% increase in salary of those 
+-- with work-exp, there's only a 1% diff in favour of exp candidates regarding
+-- their marks scored in the employability test. This shows in_exp candidates
+-- are considerably as good as those with exp.
+
+    
+select workex,
+		round(avg(etest_p)) as avg_etest_pct,
+		round(avg(salary)) as avg_salary
+	from main_work.de_case_study
+    group by 1
+    order by 2 desc, 3 desc;
+    
+
+-- Question 6: What is the specialization of the majority of 
+-- the candidates who are not placed?
+
+-- ANS: Mkt&HR specialiazation have the highest no of candidates not
+-- placed.
+select specialization,
+		status_,
+        count(*) as no_of_candidates
+	from main_work.de_case_study
+    group by 1, 2
+    having status_ = "Not Placed"
+    order by 3 desc;
+    
+-- Question 7: What is the undergraduate degree type of the 
+-- majority of the candidates who are not placed?
+
+-- ANS: Candidates with undergrad degrees in Comm&Mgmt have 
+-- the highest number of cases of not being placed.
+
+select degree_t as und_grad_degree,
+		status_,
+        count(*) as no_of_candidates
+	from main_work.de_case_study
+    group by 1, 2
+    having status_ = "Not Placed"
+    order by 3 desc;
+    
+
+-- Question 8: Is the entire class properly spread in terms of 
+-- the percentage marks scored in MBA? A class is properly spread 
+-- if the percentage marks are normally distributed.
+
+
+
+-- Question 9: What is the average salary of the top 10 candidates
+-- placed from the Mkt&Fin specialization? The top 10 candidates
+-- are selected on the basis of the salary offered.
+
+-- ANS: Average salary of the top 10 candidates in Mkt&Fin is 543600
+
+with top_10_Mkt_fin as (
+	select specialization,
+			salary
+		from main_work.de_case_study
+		where specialization = "Mkt&Fin" and status_ = "Placed"
+		order by 2 desc
+		limit 10
+	) 
+    
+select specialization,
+		round(avg(salary), 2) as avg_salary_top_10_mkt_fin
+	from top_10_Mkt_fin
+    group by 1;
+    
+
+-- Question 10: What are the specialization and the graduation 
+-- degree type of the majority of the top 10 candidates placed, 
+-- based on salary?
+
+-- ANS: A large number of the top 10 candidates specialize in Mkt&Fin
+-- with half of this distribution with a degree in Sci&Tech while the
+-- majority of the remaining half with degrees in Comm&Mgmt.
+-- Only 1 candidate made it to the top 10 from Mkt&HR with a degree
+-- in Sci&Tech
+
+with cte as (
+	select specialization,
+		degree_t,
+        salary
+	from main_work.de_case_study
+    order by 3 desc
+    limit 10
+    )
+
+select specialization,
+		degree_t,
+        count(*)
+	from cte
+    group by 1, 2
+    order by 3;
